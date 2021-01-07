@@ -36,16 +36,16 @@ use prost::Message;
 #[derive(Clone, PartialEq, Message)]
 pub struct Log {
     /// UNIX Time Stamp
-    #[prost(uint32, required, tag="1")]
+    #[prost(uint32, required, tag = "1")]
     pub time: u32,
-    #[prost(message, repeated, tag="2")]
+    #[prost(message, repeated, tag = "2")]
     pub contents: Vec<Pairs>,
 }
 #[derive(Clone, PartialEq, Message)]
 pub struct Pairs {
-    #[prost(string, required, tag="1")]
+    #[prost(string, required, tag = "1")]
     pub key: String,
-    #[prost(string, required, tag="2")]
+    #[prost(string, required, tag = "2")]
     pub value: String,
 }
 pub type Content = Pairs;
@@ -53,20 +53,20 @@ pub type LogTag = Pairs;
 
 #[derive(Clone, PartialEq, Message)]
 pub struct LogGroup {
-    #[prost(message, repeated, tag="1")]
+    #[prost(message, repeated, tag = "1")]
     pub logs: Vec<Log>,
     /// reserved fields
-    #[prost(string, optional, tag="2")]
+    #[prost(string, optional, tag = "2")]
     pub reserved: Option<String>,
-    #[prost(string, optional, tag="3")]
+    #[prost(string, optional, tag = "3")]
     pub topic: Option<String>,
-    #[prost(string, optional, tag="4")]
+    #[prost(string, optional, tag = "4")]
     pub source: Option<String>,
-    #[prost(message, repeated, tag="6")]
+    #[prost(message, repeated, tag = "6")]
     pub log_tags: Vec<LogTag>,
 }
 #[derive(Clone, PartialEq, Message)]
 pub struct LogGroupList {
-    #[prost(message, repeated, tag="1")]
+    #[prost(message, repeated, tag = "1")]
     pub log_group_list: Vec<LogGroup>,
 }
