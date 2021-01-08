@@ -34,39 +34,87 @@
 use prost::Message;
 
 #[derive(Clone, PartialEq, Message)]
-pub struct Log {
+pub(crate) struct Log {
     /// UNIX Time Stamp
     #[prost(uint32, required, tag = "1")]
-    pub time: u32,
+    time: u32,
     #[prost(message, repeated, tag = "2")]
-    pub contents: Vec<Pairs>,
+    contents: Vec<Content>,
 }
 #[derive(Clone, PartialEq, Message)]
-pub struct Pairs {
+pub(crate) struct Pair {
     #[prost(string, required, tag = "1")]
-    pub key: String,
+    key: String,
     #[prost(string, required, tag = "2")]
-    pub value: String,
+    value: String,
 }
-pub type Content = Pairs;
-pub type LogTag = Pairs;
 
 #[derive(Clone, PartialEq, Message)]
 pub struct LogGroup {
     #[prost(message, repeated, tag = "1")]
-    pub logs: Vec<Log>,
+    logs: Vec<Log>,
     /// reserved fields
     #[prost(string, optional, tag = "2")]
-    pub reserved: Option<String>,
+    _reserved: Option<String>,
     #[prost(string, optional, tag = "3")]
-    pub topic: Option<String>,
+    topic: Option<String>,
     #[prost(string, optional, tag = "4")]
-    pub source: Option<String>,
+    source: Option<String>,
     #[prost(message, repeated, tag = "6")]
-    pub log_tags: Vec<LogTag>,
+    log_tags: Vec<LogTag>,
 }
+
 #[derive(Clone, PartialEq, Message)]
 pub struct LogGroupList {
     #[prost(message, repeated, tag = "1")]
-    pub log_group_list: Vec<LogGroup>,
+    log_group_list: Vec<LogGroup>,
+}
+
+pub(crate) type Content = Pair;
+pub(crate) type LogTag = Pair;
+
+impl Pair {
+    pub(crate) fn new(key: String, value: String) -> Self {
+        Self { key, value }
+    }
+}
+
+impl Log {
+    pub(crate) fn new(time: u32, contents: Vec<Content>) -> Self {
+        Self { time, contents }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::model::proto::{Content, Log, LogGroup};
+    use bytes::BytesMut;
+    use prost::Message;
+    use std::time::SystemTime;
+
+    #[test]
+    fn test_proto() {
+        let timestamp = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        let contents = vec![Content {
+            key: "test".to_string(),
+            value: "ok".to_string(),
+        }];
+        let log = Log {
+            time: timestamp as u32,
+            contents,
+        };
+        let log_group = LogGroup {
+            logs: vec![log],
+            _reserved: None,
+            topic: None,
+            source: None,
+            log_tags: vec![],
+        };
+        let mut buf = BytesMut::new();
+        log_group.encode(&mut buf).unwrap();
+        println!("{:?}", buf);
+    }
 }
