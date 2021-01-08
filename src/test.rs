@@ -1,0 +1,22 @@
+use crate::LogProducer;
+use reqwest::Method;
+use crate::model::LogGroup;
+
+#[test]
+fn test_new_request() {
+    env_logger::init();
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    let producer = LogProducer::new(
+        env!("ACCESS_KEY"),
+        env!("ACCESS_SECRET"),
+        "cn-shenzhen.log.aliyuncs.com",
+        "playground",
+        "sdk-test",
+    )
+    .unwrap();
+    //let req = producer.new_request(Method::GET, "/logstores").unwrap();
+    let log_group = LogGroup::default();
+    let result = rt.block_on(producer.put_logs_lb(&log_group)).unwrap();
+    let text = rt.block_on(result.text()).unwrap();
+    debug!("{}", text)
+}
