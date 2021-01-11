@@ -85,11 +85,8 @@ impl LogProducer {
         Ok(self.exec(request).await?)
     }
 
-    fn new_request<P>(&self, method: Method, path: P) -> Result<RequestBuilder>
-    where
-        P: AsRef<str>,
-    {
-        let url = Url::from_str(&*format!("https://{}{}", self.endpoint, path.as_ref()))?;
+    fn new_request(&self, method: Method, path: String) -> Result<RequestBuilder> {
+        let url = Url::from_str(&*format!("https://{}{}", self.endpoint, path))?;
         let date = Utc::now().format("%a,%d%b%Y %H:%M:%S GMT").to_string();
         debug!("created request on {}", date);
         let request = self.client.request(method, url)
