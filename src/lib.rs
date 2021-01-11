@@ -8,11 +8,11 @@ use digest::Digest;
 use hmac::{Hmac, Mac, NewMac};
 use itertools::Itertools;
 use md5::Md5;
+use quick_protobuf::MessageWrite;
 use reqwest::header::{
     HeaderValue, AUTHORIZATION, CONTENT_LENGTH, CONTENT_TYPE, DATE, HOST, USER_AGENT,
 };
-use reqwest::{Client, Method, Url, Response, RequestBuilder};
-use prost::Message;
+use reqwest::{Client, Method, RequestBuilder, Response, Url};
 use sha1::Sha1;
 
 pub use crate::error::{Error, Result};
@@ -20,13 +20,16 @@ use crate::model::LogGroup;
 
 mod error;
 mod model;
+#[allow(dead_code)]
 mod headers {
     pub const LOG_API_VERSION: &str = "x-log-apiversion";
     pub const LOG_SIGNATURE_METHOD: &str = "x-log-signaturemethod";
     pub const LOG_BODY_RAW_SIZE: &str = "x-log-bodyrawsize";
+    pub const LOG_COMPRESS_TYPE: &str = "x-log-compresstype";
     pub const CONTENT_MD5: &str = "content-md5";
 }
 use headers::*;
+
 #[cfg(test)]
 mod test;
 
@@ -36,7 +39,6 @@ pub const API_VERSION: &str = "0.6.0";
 pub const SIGNATURE_METHOD: &str = "hmac-sha1";
 pub const DEFAULT_CONTENT_TYPE: &str = "application/x-protobuf";
 pub const USER_AGENT_VALUE: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
-
 
 pub struct LogProducer {
     access_key: Box<str>,
@@ -73,13 +75,14 @@ impl LogProducer {
     }
 
     /// POST /logstores/logstoreName/shards/lb
-    pub async fn put_logs_lb(&self, log_group: &LogGroup) -> Result<Response> {
-        let mut buf = bytes::BytesMut::with_capacity(log_group.encoded_len());
-        log_group.encode(&mut buf).unwrap(); // should not panic here
-        let buf = buf.freeze();
+    pub async fn put_logs_lb(&self, log_group: &LogGroup<'_>) -> Result<Response> {
+        let buf = log_group.encode()?;
         let request = self
-            .new_request(Method::POST, format!("/logstores/{}/shards/lb", self.logstore))?
-            .header(LOG_BODY_RAW_SIZE, buf.len())
+            .new_request(
+                Method::POST,
+                format!("/logstores/{}/shards/lb", self.logstore),
+            )?
+            .header(LOG_BODY_RAW_SIZE, log_group.get_size())
             .body(buf);
 
         Ok(self.exec(request).await?)
@@ -89,7 +92,9 @@ impl LogProducer {
         let url = Url::from_str(&*format!("https://{}{}", self.endpoint, path))?;
         let date = Utc::now().format("%a,%d%b%Y %H:%M:%S GMT").to_string();
         debug!("created request on {}", date);
-        let request = self.client.request(method, url)
+        let request = self
+            .client
+            .request(method, url)
             .header(USER_AGENT, USER_AGENT_VALUE)
             .header(DATE, date)
             .header(HOST, &*self.host)
@@ -113,7 +118,6 @@ impl LogProducer {
         debug!("-- method: {}", verb);
         mac.update(verb.as_bytes());
         mac.update(b"\n");
-
 
         if request.body().is_some() {
             debug!("-- body found");
@@ -154,7 +158,8 @@ impl LogProducer {
         //     将上一步得到的所有LOG自定义请求头按照字典顺序进行升序排序。
         //     删除请求头和内容之间分隔符两端出现的任何空格。
         //     将所有的头和内容用\n分隔符组合成最后的CanonicalizedLOGHeader。
-        request.headers()
+        request
+            .headers()
             .iter()
             .filter(|(key, _)| {
                 key.as_str().starts_with("x-log") || key.as_str().starts_with("x-acs")
@@ -198,7 +203,8 @@ impl LogProducer {
 
         let authorization = base64::encode(mac.finalize().into_bytes());
         let authorization = format!("LOG {}:{}", self.access_key, authorization);
-        request.headers_mut()
+        request
+            .headers_mut()
             .insert(AUTHORIZATION, authorization.parse().unwrap());
 
         Ok(self.client.execute(request).await?)

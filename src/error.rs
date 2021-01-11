@@ -18,4 +18,6 @@ pub enum Error {
         error_code: String,
         error_message: String,
     },
+    #[error("protobuf error")]
+    Protobuf(#[from] quick_protobuf::Error),
 }
