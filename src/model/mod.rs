@@ -6,8 +6,6 @@ use std::collections::BTreeMap;
 use std::ops::{Deref, DerefMut};
 
 pub use proto::LogGroup;
-use bytes::buf::UninitSlice;
-use bytes::BytesMut;
 
 /// The minimal unit representing a log record.
 pub struct Record {

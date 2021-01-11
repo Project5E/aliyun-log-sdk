@@ -1,7 +1,5 @@
 #[macro_use]
 extern crate log;
-#[macro_use]
-extern crate lazy_static;
 
 use std::str::FromStr;
 
@@ -11,7 +9,7 @@ use hmac::{Hmac, Mac, NewMac};
 use itertools::Itertools;
 use md5::Md5;
 use reqwest::header::{
-    HeaderName, HeaderValue, AUTHORIZATION, CONTENT_LENGTH, CONTENT_TYPE, DATE, HOST, USER_AGENT,
+    HeaderValue, AUTHORIZATION, CONTENT_LENGTH, CONTENT_TYPE, DATE, HOST, USER_AGENT,
 };
 use reqwest::{Client, Method, Url, Response, RequestBuilder};
 use prost::Message;
@@ -19,8 +17,6 @@ use sha1::Sha1;
 
 pub use crate::error::{Error, Result};
 use crate::model::LogGroup;
-use lz4::EncoderBuilder;
-use std::io;
 
 mod error;
 mod model;
@@ -46,7 +42,6 @@ pub struct LogProducer {
     access_key: Box<str>,
     access_secret: Box<str>,
     endpoint: Box<str>,
-    project: Box<str>,
     host: Box<str>,
     logstore: Box<str>,
     client: Client,
@@ -71,7 +66,6 @@ impl LogProducer {
             access_key: access_key.as_ref().into(),
             access_secret: access_secret.as_ref().into(),
             endpoint: endpoint.as_ref().into(),
-            project: project.as_ref().into(),
             host: format!("{}.{}", project.as_ref(), endpoint.as_ref()).into_boxed_str(),
             logstore: logstore.as_ref().into(),
             client: reqwest::ClientBuilder::new().build()?,
@@ -85,11 +79,10 @@ impl LogProducer {
         let buf = buf.freeze();
         let request = self
             .new_request(Method::POST, format!("/logstores/{}/shards/lb", self.logstore))?
-            .header(CONTENT_LENGTH, buf.len())
             .header(LOG_BODY_RAW_SIZE, buf.len())
             .body(buf);
 
-        Ok(self.preflight(request).exec().await?)
+        Ok(self.exec(request).await?)
     }
 
     fn new_request<P>(&self, method: Method, path: P) -> Result<RequestBuilder>
@@ -109,26 +102,8 @@ impl LogProducer {
         Ok(request)
     }
 
-    fn preflight(&self, request: RequestBuilder) -> PreFlightRequest {
-        PreFlightRequest {
-            access_key: &*self.access_key,
-            access_secret: &*self.access_secret,
-            request,
-            client: &self.client
-        }
-    }
-}
-
-pub struct PreFlightRequest<'a> {
-    access_key: &'a str,
-    access_secret: &'a str,
-    request: RequestBuilder,
-    client: &'a Client,
-}
-
-impl PreFlightRequest<'_> {
-    pub async fn exec(self) -> Result<reqwest::Response> {
-        let mut request = self.request.build()?;
+    async fn exec(&self, request: RequestBuilder) -> Result<reqwest::Response> {
+        let mut request = request.build()?;
 
         let mut mac = HmacSha1::new_varkey(self.access_secret.as_bytes()).unwrap();
         // SignString = VERB + "\n"
@@ -138,18 +113,22 @@ impl PreFlightRequest<'_> {
         //              + CanonicalizedLOGHeaders + "\n"
         //              + CanonicalizedResource
         let verb = request.method().as_str();
+        debug!("-- method: {}", verb);
         mac.update(verb.as_bytes());
         mac.update(b"\n");
 
 
         if request.body().is_some() {
+            debug!("-- body found");
             let body = request.body().unwrap().as_bytes().unwrap();
             let length = body.len();
             let digest = Md5::digest(body);
+            let digest = hex::encode(digest).to_ascii_uppercase();
+            debug!("-- content-md5: {}", digest);
             let md5 = request
                 .headers_mut()
                 .entry(CONTENT_MD5)
-                .or_insert_with(|| base64::encode(digest).parse().unwrap());
+                .or_insert_with(|| digest.parse().unwrap());
             mac.update(md5.as_ref());
             mac.update(b"\n");
 
@@ -167,7 +146,7 @@ impl PreFlightRequest<'_> {
         }
 
         let date = request.headers_mut().entry(DATE).or_insert_with(|| {
-            let date = Utc::now().format("%a,%d%b%Y %H:%M:%S GMT").to_string();
+            let date = Utc::now().format("%a, %d %b %Y %H:%M:%S GMT").to_string();
             date.parse().unwrap()
         });
 
@@ -192,6 +171,7 @@ impl PreFlightRequest<'_> {
                 )
             })
             .for_each(|next| {
+                debug!("-- header: {}", next);
                 mac.update(next.as_bytes());
                 mac.update(b"\n");
             });

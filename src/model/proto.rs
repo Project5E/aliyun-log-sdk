@@ -34,7 +34,7 @@
 use prost::Message;
 
 #[derive(Clone, PartialEq, Message)]
-pub(crate) struct Log {
+pub struct Log {
     /// UNIX Time Stamp
     #[prost(uint32, required, tag = "1")]
     time: u32,
@@ -42,7 +42,7 @@ pub(crate) struct Log {
     contents: Vec<Content>,
 }
 #[derive(Clone, PartialEq, Message)]
-pub(crate) struct Pair {
+pub struct Pair {
     #[prost(string, required, tag = "1")]
     key: String,
     #[prost(string, required, tag = "2")]
@@ -82,6 +82,29 @@ impl Pair {
 impl Log {
     pub(crate) fn new(time: u32, contents: Vec<Content>) -> Self {
         Self { time, contents }
+    }
+}
+
+impl LogGroup {
+    pub fn set_topic<S>(&mut self, topic: S) -> &mut Self
+        where S: Into<String>
+    {
+        self.topic = Some(topic.into());
+        self
+    }
+
+    pub fn set_source<S>(&mut self, source: S) -> &mut Self
+        where S: Into<String>
+    {
+        self.source = Some(source.into());
+        self
+    }
+
+    pub fn add_log<L>(&mut self, log: L) -> &mut Self
+        where L: Into<Log>
+    {
+        self.logs.push(log.into());
+        self
     }
 }
 
