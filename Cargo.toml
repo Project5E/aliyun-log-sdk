@@ -9,6 +9,10 @@ license = "MIT OR Apache-2.0"
 readme = "README.md"
 keywords = ["aliyun", "aliyuncs", "log"]
 categories = ["api-bindings"]
+include = [
+    "**/*.rs",
+    "Cargo.toml",
+]
 
 [dependencies]
 log = "0.4"
