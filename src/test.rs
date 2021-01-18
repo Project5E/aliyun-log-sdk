@@ -1,6 +1,5 @@
-use crate::model::{LogGroup, Log};
+use crate::model::{Log, LogGroup};
 use crate::LogProducer;
-use reqwest::Method;
 
 #[test]
 fn test_new_request() {
@@ -15,9 +14,9 @@ fn test_new_request() {
     )
     .unwrap();
     //let req = producer.new_request(Method::GET, "/logstores").unwrap();
-    let mut log_group = LogGroup::default();
-    let record = Log::default();
-    log_group.add_log(record);
+    let mut records = Vec::new();
+    records.push(Log::default());
+    let log_group = LogGroup::new(records);
     let result = rt.block_on(producer.put_logs_lb(&log_group)).unwrap();
     let text = rt.block_on(result.text()).unwrap();
     debug!("{}", text)
